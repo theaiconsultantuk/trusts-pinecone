@@ -3,6 +3,11 @@ from pineconeupsert import embed_and_upsert_pdfs
 from pinecone_query_last_working import embed_query, query_pinecone
 import openai
 import os
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Set the PDF directory to 'uploads'
 pdf_directory = "uploads"
@@ -88,14 +93,134 @@ def main():
 
         if st.button("Send"):
             if user_input:
-                # Call OpenAI GPT-4 to get a response
-                response = openai.Completion.create(
-                    engine="gpt-4",
-                    prompt=user_input,
-                    max_tokens=150
-                )
-                answer = response.choices[0].text.strip()
-                st.write("AI:", answer)
+                # Embed the user's query
+                embedding = embed_query(user_input)
+
+                # Query Pinecone for the top 3 similar results with error handling
+                try:
+                    search_results = query_pinecone(embedding, top_k=3)
+                    if not search_results or not search_results.matches:
+                        st.error("No results found in the index.")
+                        logger.error("No results found in the index.")
+                        return
+
+                    # Log the top 3 matches with filename and text
+                    logger.info("Top 3 matches:")
+                    for match in search_results.matches:
+                        filename = match['metadata'].get('filename', 'Unknown Filename')
+                        text = match['metadata'].get('text', 'No text available')
+                        logger.info(f"Score: {match['score']}, Filename: {filename}, Text: {text}")
+
+                    # Evaluate the relevance of each result
+                    relevant_insights = []
+                    relevant_references = []
+                    for i, result in enumerate(search_results.matches):
+                        # Lower threshold for relevance
+                        if result['score'] > 0.4:
+                            text = result['metadata']['text']
+                            filename = result['metadata'].get('filename', 'Unknown Filename')
+
+                            # Log the evaluation prompt for debugging
+                            logger.info(f"Evaluation Prompt: Query: {user_input}\nText: {text}")
+
+                            # Use AI to evaluate if the text is useful as a boolean
+                            evaluation_prompt = (
+                                "You are an expert in evaluating the relevance of documents in an index against a user's query. "
+                                "Please respond with 'true' if the text is useful for answering the user's query, otherwise respond with 'false'. "
+                                f"Query: {user_input}\nText: {text}"
+                            )
+
+                            client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+                            evaluation_response = client.chat.completions.create(
+                                messages=[
+                                    {"role": "system", "content": "You are an expert in evaluating text relevance."},
+                                    {"role": "user", "content": evaluation_prompt}
+                                ],
+                                model="gpt-4o",
+                                max_tokens=10  # Small token count for boolean response
+                            )
+                            evaluation_result = evaluation_response.choices[0].message.content.strip().lower()
+
+                            if evaluation_result == "true":
+                                # Extract relevant parts using AI
+                                extraction_prompt = (
+                                    "You are an expert in extracting relevant information from documents. "
+                                    "Please extract the parts of the text that are most relevant to the query. "
+                                    f"Query: {user_input}\nText: {text}"
+                                )
+
+                                extraction_response = client.chat.completions.create(
+                                    messages=[
+                                        {"role": "system", "content": "You are an expert in extracting information."},
+                                        {"role": "user", "content": extraction_prompt}
+                                    ],
+                                    model="gpt-4o",
+                                    max_tokens=150  # Increase tokens for extraction
+                                )
+                                extracted_text = extraction_response.choices[0].message.content.strip()
+                                relevant_insights.append(extracted_text)
+                                relevant_references.append(filename)
+
+                    if not relevant_insights:
+                        st.info("No suitable data was found in the index. Providing a general answer.")
+                        # Log the text from sources
+                        for match in search_results.matches:
+                            filename = match['metadata'].get('filename', 'Unknown Filename')
+                            text = match['metadata'].get('text', 'No text available')
+                            logger.info(f"Filename: {filename}, Text: {text}")
+
+                        # Provide a general answer using AI
+                        client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+                        response = client.chat.completions.create(
+                            messages=[
+                                {"role": "system", "content": "You are an expert in making complex concepts easy to understand. You are also a top teacher with a great command of the English language."},
+                                {"role": "user", "content": user_input}
+                            ],
+                            model="gpt-4o",
+                            max_tokens=300
+                        )
+                        answer = response.choices[0].message.content.strip()
+                        st.write("AI:", answer)
+                    else:
+                        # Enhance the prompt with persona and relevant search results
+                        enhanced_prompt = (
+                            "You are an expert in making complex concepts easy to understand. "
+                            "You are also a top teacher with a great command of the English language. "
+                            "Your task is to explain the following based on the user's query and relevant search results: "
+                            f"{user_input}. Here are some relevant insights: "
+                        )
+                        for i, insight in enumerate(relevant_insights):
+                            enhanced_prompt += f"{i+1}. {insight} (Filename: {relevant_references[i]}) "
+
+                        # Call OpenAI GPT-4 to get a response using the new SDK interface
+                        client = openai.OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+                        response = client.chat.completions.create(
+                            messages=[
+                                {"role": "system", "content": "You are an expert in making complex concepts easy to understand. You are also a top teacher with a great command of the English language."},
+                                {"role": "user", "content": enhanced_prompt}
+                            ],
+                            model="gpt-4o",
+                            max_tokens=300
+                        )
+                        answer = response.choices[0].message.content.strip()
+                        st.write("AI:", answer)
+
+                        # Add references at the bottom of the answer
+                        st.write("# References")
+                        for ref in relevant_references:
+                            st.write(f"- {ref}")
+
+                        # Provide a way to view full context using a modal
+                        if st.button("View Full Context"):
+                            st.write("## Full Context")
+                            for i, ref in enumerate(relevant_references):
+                                st.write(f"**Source {i+1}: {ref}**")
+                                st.write(relevant_insights[i])
+                except Exception as e:
+                    st.error("An error occurred while querying the index.")
+                    logger.error(f"Error querying Pinecone: {e}")
+                    return
+
             else:
                 st.warning("Please enter a message.")
 

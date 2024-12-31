@@ -105,6 +105,24 @@ def query_pinecone(embedding, top_k=5):
         logger.error(f"Error querying Pinecone: {e}")
         return None
 
+def chatbot_query_pinecone(embedding, top_k=3):
+    """
+    Queries the Pinecone index with the given embedding and returns top_k matches.
+    Specifically for chatbot usage with top_k set to 3.
+    """
+    try:
+        response = pinecone_index.query(
+            vector=embedding,
+            top_k=top_k,
+            include_values=False,       # We don't need the vector values
+            include_metadata=True,      # To retrieve metadata like text and filename
+            namespace=namespace
+        )
+        return response
+    except Exception as e:
+        logger.error(f"Error querying Pinecone: {e}")
+        return None
+
 def display_results(response):
     """
     Displays the query results.
