@@ -5,11 +5,21 @@ import pdfplumber
 from openai import OpenAI
 import pinecone
 from pinecone import Pinecone
-from dotenv import load_dotenv
+import streamlit as st
 import logging
 
-# Load environment variables from the .env file
-load_dotenv()
+# Load environment variables from Streamlit secrets
+openai_api_key = st.secrets["OPENAI_API_KEY"]
+openai_model = st.secrets.get("OPENAI_MODEL", "text-embedding-3-small")
+pinecone_api_key = st.secrets["PINECONE_API_KEY"]
+pinecone_env = st.secrets["PINECONE_ENVIRONMENT"]
+
+# PDF Directory
+pdf_directory = "uploads"
+
+# Ensure the directory exists
+if not os.path.exists(pdf_directory):
+    os.makedirs(pdf_directory)
 
 # ----------------------------
 # Logging Configuration
@@ -25,38 +35,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ----------------------------
-# Configuration from .env
-# ----------------------------
-
-# OpenAI Configuration
-openai_api_key = os.getenv("OPENAI_API_KEY")
-openai_model = os.getenv("OPENAI_MODEL", "text-embedding-3-small")
-
-# Pinecone Configuration
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
-pinecone_env = os.getenv("PINECONE_ENVIRONMENT")
-
-# PDF Directory
-pdf_directory = os.getenv("PDF_DIRECTORY")
-
-# ----------------------------
 # Validation of Environment Variables
 # ----------------------------
 
 if not openai_api_key:
-    logger.error("OPENAI_API_KEY not found in environment variables.")
-    raise ValueError("OPENAI_API_KEY not found in environment variables.")
+    logger.error("OPENAI_API_KEY not found in Streamlit secrets.")
+    raise ValueError("OPENAI_API_KEY not found in Streamlit secrets.")
 
 if not pinecone_api_key or not pinecone_env:
-    logger.error("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in environment variables.")
-    raise ValueError("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in environment variables.")
-
-if not pdf_directory:
-    logger.error("PDF_DIRECTORY not set in environment variables.")
-    raise ValueError("PDF_DIRECTORY not set in environment variables.")
-if not os.path.isdir(pdf_directory):
-    logger.error(f"PDF_DIRECTORY path '{pdf_directory}' does not exist or is not a directory.")
-    raise ValueError(f"PDF_DIRECTORY path '{pdf_directory}' does not exist or is not a directory.")
+    logger.error("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in Streamlit secrets.")
+    raise ValueError("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in Streamlit secrets.")
 
 # ----------------------------
 # Initialize OpenAI and Pinecone Clients

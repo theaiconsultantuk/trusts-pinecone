@@ -1,7 +1,7 @@
 # pinecone_query.py
 
 import os
-from dotenv import load_dotenv
+import streamlit as st
 from openai import OpenAI
 import pinecone
 from pinecone import Pinecone
@@ -24,15 +24,11 @@ logger = logging.getLogger(__name__)
 # Load Environment Variables
 # ----------------------------
 
-load_dotenv()
-
-# OpenAI Configuration
-openai_api_key = os.getenv("OPENAI_API_KEY")
-openai_model = os.getenv("OPENAI_MODEL", "text-embedding-3-small")
-
-# Pinecone Configuration
-pinecone_api_key = os.getenv("PINECONE_API_KEY")
-pinecone_env = os.getenv("PINECONE_ENVIRONMENT")
+# Access secrets using Streamlit's st.secrets
+openai_api_key = st.secrets["OPENAI_API_KEY"]
+openai_model = st.secrets.get("OPENAI_MODEL", "text-embedding-3-small")
+pinecone_api_key = st.secrets["PINECONE_API_KEY"]
+pinecone_env = st.secrets["PINECONE_ENVIRONMENT"]
 
 # Pinecone Index Configuration
 index_name = "trusts-index"
@@ -43,12 +39,12 @@ namespace = "ns1"  # Ensure this matches the namespace used during upsert
 # ----------------------------
 
 if not openai_api_key:
-    logger.error("OPENAI_API_KEY not found in environment variables.")
-    raise ValueError("OPENAI_API_KEY not found in environment variables.")
+    logger.error("OPENAI_API_KEY not found in Streamlit secrets.")
+    raise ValueError("OPENAI_API_KEY not found in Streamlit secrets.")
 
 if not pinecone_api_key or not pinecone_env:
-    logger.error("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in environment variables.")
-    raise ValueError("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in environment variables.")
+    logger.error("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in Streamlit secrets.")
+    raise ValueError("PINECONE_API_KEY or PINECONE_ENVIRONMENT not found in Streamlit secrets.")
 
 # ----------------------------
 # Initialize OpenAI and Pinecone Clients

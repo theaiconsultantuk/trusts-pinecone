@@ -2,10 +2,13 @@ import streamlit as st
 from pineconeupsert import embed_and_upsert_pdfs
 from pinecone_query_last_working import embed_query, query_pinecone
 import os
-from dotenv import load_dotenv
 
-# Load environment variables
-load_dotenv()
+# Set the PDF directory to 'uploads'
+pdf_directory = "uploads"
+
+# Ensure the directory exists
+if not os.path.exists(pdf_directory):
+    os.makedirs(pdf_directory)
 
 # Set up the Streamlit app
 def main():
@@ -18,12 +21,12 @@ def main():
         if uploaded_files:
             file_paths = []
             for uploaded_file in uploaded_files:
-                # Save the uploaded file to a temporary location
-                file_path = os.path.join("uploads", uploaded_file.name)
+                # Save the uploaded file to the 'uploads' directory
+                file_path = os.path.join(pdf_directory, uploaded_file.name)
                 with open(file_path, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 file_paths.append(file_path)
-                st.write(f"Uploaded {uploaded_file.name}")
+                st.write(f"Uploaded {uploaded_file.name} to {pdf_directory}")
 
             # Call the function to embed and upsert PDFs
             embed_and_upsert_pdfs(file_paths)
