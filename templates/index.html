@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pinecone Upsert</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .progress { width: 100%; background-color: #f3f3f3; border-radius: 5px; margin-top: 10px; }
+        .progress-bar { height: 20px; width: 0; background-color: #4caf50; border-radius: 5px; text-align: center; color: white; }
+    </style>
+</head>
+<body>
+    <h1>Upload PDFs to Pinecone</h1>
+    <input type="file" id="fileInput" multiple accept="application/pdf">
+    <button onclick="uploadFiles()">Upload</button>
+    <div id="progressContainer"></div>
+
+    <h1>Query Pinecone Database</h1>
+    <form action="/query" method="post">
+        <label for="query">Enter your query:</label>
+        <input type="text" id="query" name="query" required>
+        <button type="submit">Submit</button>
+    </form>
+    <br>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <ul class="flashes">
+        {% for message in messages %}
+          <li>{{ message }}</li>
+        {% endfor %}
+        </ul>
+      {% endif %}
+    {% endwith %}
+
+    <h2>Files in the Database</h2>
+    {% if filenames %}
+        <ul>
+        {% for filename in filenames %}
+            <li>{{ filename }}</li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No files found in the database.</p>
+    {% endif %}
+
+    <h2>Query Results</h2>
+    {% if query_results %}
+        <ul>
+        {% for result in query_results %}
+            <li>
+                <strong>Filename:</strong> {{ result.filename }}<br>
+                <strong>Chunk ID:</strong> {{ result.chunk_id }}<br>
+                <strong>Text:</strong> {{ result.text }}<br>
+            </li>
+        {% endfor %}
+        </ul>
+    {% else %}
+        <p>No results found.</p>
+    {% endif %}
+
+    <script>
+        function uploadFiles() {
+            const files = document.getElementById('fileInput').files;
+            const progressContainer = document.getElementById('progressContainer');
+            progressContainer.innerHTML = '';
+
+            for (const file of files) {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const progressDiv = document.createElement('div');
+                progressDiv.innerHTML = `<strong>${file.name}</strong>`;
+
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress';
+                const progressBarFill = document.createElement('div');
+                progressBarFill.className = 'progress-bar';
+                progressBar.appendChild(progressBarFill);
+                progressDiv.appendChild(progressBar);
+
+                progressContainer.appendChild(progressDiv);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '/upload', true);
+
+                xhr.upload.onprogress = function(event) {
+                    if (event.lengthComputable) {
+                        const percentComplete = (event.loaded / event.total) * 100;
+                        progressBarFill.style.width = percentComplete + '%';
+                        progressBarFill.textContent = Math.round(percentComplete) + '%';
+                    }
+                };
+
+                xhr.onload = function() {
+                    if (xhr.status === 200) {
+                        progressBarFill.style.backgroundColor = '#4caf50';
+                        progressBarFill.textContent = 'Upload Complete';
+                    } else {
+                        progressBarFill.style.backgroundColor = '#f44336';
+                        progressBarFill.textContent = 'Error';
+                    }
+                };
+
+                xhr.onerror = function() {
+                    progressBarFill.style.backgroundColor = '#f44336';
+                    progressBarFill.textContent = 'Error';
+                };
+
+                xhr.send(formData);
+            }
+        }
+    </script>
+</body>
+</html>
